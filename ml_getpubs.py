@@ -41,7 +41,7 @@ pubframe=pd.DataFrame(columns=['date','journal','jif','abstract','title','num_au
 for j in jifs:
        
     #esearch for list of IDS.  get full set here.
-    id_list_handle=Entrez.esearch(db='pubmed',term=j,retmax=10,datetype='pdat',mindate='2015/01/01',maxdate='2016/01/01')
+    id_list_handle=Entrez.esearch(db='pubmed',term=j,retmax=100,datetype='pdat',mindate='2015/01/01',maxdate='2016/01/01')
     id_list=Entrez.read(id_list_handle)
     pubs=pubs+id_list['IdList']
 
@@ -57,7 +57,8 @@ def fetch_abs(article):
 def make_authlist(auths):
     names=[]
     for x in auths:
-        names.append(x['ForeName'] + ' ' + x['LastName'])
+        if ('ForeName' in x) & ('LastName' in x):
+            names.append(x['ForeName'] + ' ' + x['LastName'])
     return names
 
 
@@ -130,10 +131,19 @@ for i in range(0,len(pubs),chunk):
         auth_list=fetch_authors(article)
         #remove all articles without authors, presumably not research articles.        
         if auth_list!='None':
-            pubframe.loc[pmid,'num_auth']=len(auth_list)        
-            pubframe.loc[pmid,'senior']=auth_list[-1]['ForeName']+' ' + auth_list[-1]['LastName']
-            pubframe.loc[pmid,'first']=auth_list[0]['ForeName']+' ' + auth_list[0]['LastName']
-            pubframe.loc[pmid,'full_auth']=make_authlist(auth_list)
+            pubframe.loc[pmid,'num_auth']=len(auth_list) 
+            if 'CollectiveName' in auth_list[0]: 
+                pubframe.loc[pmid,'first']='collective'
+                pubframe.loc[pmid,'full_auth']='collective'
+            else:
+                pubframe.loc[pmid,'first']=auth_list[0]['ForeName']+' ' + auth_list[0]['LastName']         
+                pubframe.loc[pmid,'full_auth']=make_authlist(auth_list)
+            
+            if 'CollectiveName' in auth_list[-1]: 
+                pubframe.loc[pmid,'senior']='collective'
+            else:
+                pubframe.loc[pmid,'senior']=auth_list[-1]['ForeName']+' ' + auth_list[-1]['LastName']
+                
             pubframe.loc[pmid,'inst']=make_instlist(auth_list)
         else:
             pubframe.ix[pmid]=0
@@ -143,9 +153,6 @@ for i in range(0,len(pubs),chunk):
             pubframe.ix[pmid]=0
 
 #remove zero rows
-pubframe['abstract']==0
-pubframe.drop(pubframe['abstract']==0,axis=1)
-
 pubframe=pubframe[pubframe['abstract']!=0]
 
-
+pubframe.to_csv('1000auth.csv',header=True, encoding='utf-8')
