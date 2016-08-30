@@ -10,12 +10,15 @@ Created on Sun Aug 14 18:03:07 2016
 #
 
 #crude way to get list of common words.
-words=open(r'C:\Users\trexleraj\Desktop\python dev\scripts\words')
+words=open('/home/adam/scripts/ml2/words')
 words_txt=words.read()
 common=words_txt.split('\n')
 common.pop()
 common.pop()
 words.close()
+
+pubframe=pd.read_csv('/home/adam/scripts/ml2/1000auth.csv')
+
 
 #make a dict of all rhe words in an abstract.  remove most common 100 english words.
 def make_abs_dict(a):
