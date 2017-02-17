@@ -21,7 +21,7 @@ import re
 import matplotlib.pyplot as plt
 from decimal import *
 
-Entrez.email='d_hooke@posteo.net'
+Entrez.email='adam.trexler@posteo.net'
 jifs=dict([('"Science (New York, N.Y.)"[Journal]',34.661),
               ('"Nature"[Journal]',38.138),
               ('"Biophysical journal"[Journal]',3.632),
