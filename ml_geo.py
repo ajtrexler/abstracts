@@ -14,8 +14,13 @@ import numpy as np
 from geopy.geocoders import Nominatim
 geolocator = Nominatim()
 import time
-from sklearn.neighbors import NearestNeighbors as knn
+from sklearn.neighbdefaultdictors import NearestNeighbors as knn
 from sklearn import manifold
+from sklearn.cluster import KMeans
+import ast
+import scipy as sci
+import collections
+
 
 #coord_array=pd.DataFrame(index=np.arange(0,32400,1),columns=['count','name'])
 #
@@ -80,25 +85,73 @@ from sklearn import manifold
 #savegeo['idx']=i_list
 #savegeo.to_csv('savegeo.csv')
 
+journals={}
+for x in jifs:
+    journals[jifs[x]]=x
 
-savegeo=pd.from_csv('savegeo.csv')
-geo=savegeo[savegeo['geo']!=-500]
+def jif_to_j(jlist):
+    convert=[]
+    for x in jlist:
+        n=round(x,3)
+        convert.append(journals[n])
+    return convert
+        
+
+savegeo=pd.read_csv('savegeo.csv',converters={"geo": ast.literal_eval})
+savegeo.drop('Unnamed: 0',1,inplace=True)
+
+#issue is reading this as csv makes the datatypes weird.  strings instead of tuples...
+geo=savegeo[savegeo['place']!=-500]
+geo['journal']=jif_to_j(geo['jif'])
+
 lat=[x[0] for x in geo['geo']]
 lon=[x[1] for x in geo['geo']]
+
+geo['lat']=lat
+geo['lon']=lon
+geo.drop('geo',1,inplace=True)
 
 geofit=pd.DataFrame(columns=['lat','lon'])
 geofit['lat']=lat
 geofit['lon']=lon
 
-#want to now isomap and assign average jif per cluster.  knn doesnt seem to be proper
-#way to cluster here, because will just find the X nearest neighbors of all points
-#instead of actually clustering.
-nbrs=knn(n_neighbors=50,algorithm='auto').fit(geofit)
-dist,g_idx=nbrs.kneighbors(geofit)
 
-isomap=manifold.Isomap(25,25).fit(geofit)
-geo_iso=isomap.transform(geofit)
-plt.scatter(x=yes,y=xes)
+#cluster the institutions geographically.
+clusts=KMeans(n_clusters=20).fit(geofit)
+
+clust_idx=clusts.predict(geofit)
+centers=clusts.cluster_centers_
+
+for c in np.unique(clust_idx):
+    locale=geo[clust_idx==c]
+    centroid=centers[c]
+    vote=[]
+    dist=[]
+    #want each point to vote for cluster journal, with an associated weight.
+    for l in locale.iterrows():
+        point=[l[1]['lat'],l[1]['lon']]
+        dist.append(sci.spatial.distance.euclidean(centroid,point))
+        vote.append(l[1]['journal'])
+    vote_count=collections.Counter(vote)
+    locale_pred=vote_count.most_common()[0]
+    geo.loc[locale.index,'pred']=locale_pred[0]
+#not working super well, obvs from distribution of the
+
+#so possibly use distribution of journals within each cluster to
+        
+
+
+
+
+
+
+
+csp=plt.cm.jet(np.linspace(0,1,len(np.unique(val))))
+plt.scatter(x=lat,y=lon,c=csp)
+plt.scatter(x=geofit['lat'],y=geofit['lon'],c='black')
+plt.scatter(x=cluster1['lat'],y=cluster1['lon'],c='red')
+
+
 
 
 

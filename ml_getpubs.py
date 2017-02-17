@@ -19,6 +19,7 @@ import pandas as pd
 import numpy as np
 import re
 import matplotlib.pyplot as plt
+from decimal import *
 
 Entrez.email='d_hooke@posteo.net'
 jifs=dict([('"Science (New York, N.Y.)"[Journal]',34.661),
