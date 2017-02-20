@@ -17,7 +17,7 @@ common.pop()
 common.pop()
 words.close()
 
-pubframe=pd.read_csv('/home/adam/scripts/ml_authors/1000auth.csv')
+pubframe=pd.read_csv('1000auth.csv')
 
 
 #make a dict of all rhe words in an abstract.  remove most common 100 english words.

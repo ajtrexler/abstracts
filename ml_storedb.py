@@ -20,6 +20,7 @@ for row in zip(abs_columns,abs_col_types):
     q.append(" ".join(map(str,row)))
 
 db=sqlite3.connect(sql_file)
+db.text_factory=str
 conn=db.cursor()
 
 conn.execute('CREATE TABLE absframe(pmid INT, jif INT,journal TEXT, abstract TEXT, PRIMARY KEY (pmid))')
@@ -28,3 +29,6 @@ conn.execute('CREATE TABLE {tn}({nant})'.format(tn=table_name1,nant=q))
 
 db.commit()
 db.close()
+
+pubframe.to_sql(sql_file,db,if_exists='append')
+
