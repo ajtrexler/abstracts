@@ -22,6 +22,17 @@ import matplotlib.pyplot as plt
 from decimal import *
 import time
 import csv
+import requests
+import sqlite3
+import os
+
+'''
+setup SQL database.
+'''
+sql_file='mydb.sqlite'
+db=sqlite3.connect(sql_file)
+db.text_factory=str
+
 
 Entrez.email='adam.trexler@posteo.net'
 jifs=dict([('"Science (New York, N.Y.)"[Journal]',34.661),
@@ -43,29 +54,25 @@ jifs=dict([('"Science (New York, N.Y.)"[Journal]',34.661),
               
               
 pubs=[]
-rec_per_j={}
-#init dataframe to save stuff into.  indices will be PMIDs.
-pubframe=pd.DataFrame(columns=['date','journal','jif','abstract','title','num_auth','senior','first','full_auth','inst'])
 
 #iterate over jifs dict to get all the pmids saved into pubs variable.  so maybe make the pubframe here and save into it journal and jif
-for j in jifs:
-    time.sleep(3)   
-    #esearch for list of IDS.  get full set here.
-    id_list_handle=Entrez.esearch(db='pubmed',term=j,retmax=10000,datetype='pdat',mindate='2015/01/01',maxdate='2016/01/01')
-    id_list=Entrez.read(id_list_handle)
-    rec_per_j[j]=len(id_list['IdList'])
-    pubs=pubs+id_list['IdList']
-
-idfile=open('pub_list.csv','wb')
-wr=csv.writer(idfile)
-wr.writerow(pubs)
-idfile.close()
+#for j in jifs:
+#    time.sleep(3)   
+#    #esearch for list of IDS.  get full set here.
+#    id_list_handle=Entrez.esearch(db='pubmed',term=j,retmax=10000,datetype='pdat',mindate='2015/01/01',maxdate='2016/01/01')
+#    id_list=Entrez.read(id_list_handle)
+#    rec_per_j[j]=len(id_list['IdList'])
+#    pubs=pubs+id_list['IdList']
+#
+#idfile=open('pub_list.csv','wb')
+#wr=csv.writer(idfile)
+#wr.writerow(pubs)
+#idfile.close()
 
 fromfile=open('pub_list.csv','r')
 rr=csv.reader(fromfile)
 for line in rr:
     pubs=line
-    pubs=[int(x) for x in pubs]
 
 #want t odefine functions to fetch most of this stuff so can pass error when theres no abstract or whatever.
 def fetch_abs(article):
@@ -116,18 +123,28 @@ def fetch_authors(article):
     if article.has_key('AuthorList'):
         return article['AuthorList']
     else:
-        return 'None'200
+        return 'None'
         
         
-chunk=500
-for i in range(0,len(pubs),chunk):
-    start=time.time()    
-    handle=Entrez.efetch(db='pubmed',id=pubs[0],retstart=i,retmode='xml',retmax=100)
+chunk=100
+#just chunk at 100, seems like either way need to iterate over pub list and feed in limited number to efetch or epost.
+#check in db what latest UID is, get argnum for that.  if db: check, else: make db
+if os.path.isfile(sql_file):
+    #get idx of latest entry
+    conn=db.cursor()
+    conn.execute('SELECT * FROM Table ORDER BY ID DESC LIMIT 1')
+else:
+    bottom=0
+#set up iteration starting from argnum
+for i in range(bottom,len(pubs),chunk):
+    l=pubs[i:i+chunk]
+    handle=Entrez.efetch(db='pubmed',id=l,retstart=i,retmode='xml',retmax=100)
     record=Entrez.read(handle)
-    print (time.time()-start)/60
-    
+    #init dataframe to save stuff into.  indices will be PMIDs.
+    pubframe=pd.DataFrame(columns=['date','journal','jif','abstract','title','num_auth','senior','first','full_auth','inst'])
+
     #loop over every entry in record to extract and save the details.
-    for x in record:
+    for x in record['PubmedArticle']:
         
         mcite=x['MedlineCitation']
         pdata=x['PubmedData']
@@ -174,7 +191,10 @@ for i in range(0,len(pubs),chunk):
         if pubframe.loc[pmid,'abstract']=='None':
             pubframe.ix[pmid]=0
 
-#remove zero rows
-pubframe=pubframe[pubframe['abstract']!=0]
+    #remove zero rows
+    pubframe=pubframe[pubframe['abstract']!=0]
 
-pubframe.to_csv('1000auth.csv',header=True, encoding='utf-8')
+    pubframe.to_sql(sql_file,db,if_exists='append')
+
+db.commit()
+db.close()
