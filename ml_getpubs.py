@@ -20,6 +20,8 @@ import numpy as np
 import re
 import matplotlib.pyplot as plt
 from decimal import *
+import time
+import csv
 
 Entrez.email='adam.trexler@posteo.net'
 jifs=dict([('"Science (New York, N.Y.)"[Journal]',34.661),
@@ -31,21 +33,39 @@ jifs=dict([('"Science (New York, N.Y.)"[Journal]',34.661),
               ('"PLoS biology"[Journal]',8.668),
               ('"Molecular biology of the cell"[Journal]',4.037),
               ('"Neuron"[Journal]',13.974),
-              ('"Molecular cell"[Journal]',13.958)])
+              ('"Molecular cell"[Journal]',13.958),
+              ('"The Journal of general physiology"[Journal]',4.788),
+              ('"Blood"[Journal]',11.841),
+              ('"The Journal of cell biology"[Journal]',9.786),
+              ('"The Journal of biological chemistry"[Journal]',4.573),
+              ('"elife"[Journal]',8.303),
+              ('"Journal of cell science"[Journal]',4.706)])
               
               
 pubs=[]
+rec_per_j={}
 #init dataframe to save stuff into.  indices will be PMIDs.
 pubframe=pd.DataFrame(columns=['date','journal','jif','abstract','title','num_auth','senior','first','full_auth','inst'])
 
 #iterate over jifs dict to get all the pmids saved into pubs variable.  so maybe make the pubframe here and save into it journal and jif
 for j in jifs:
-       
+    time.sleep(3)   
     #esearch for list of IDS.  get full set here.
-    id_list_handle=Entrez.esearch(db='pubmed',term=j,retmax=100,datetype='pdat',mindate='2015/01/01',maxdate='2016/01/01')
+    id_list_handle=Entrez.esearch(db='pubmed',term=j,retmax=10000,datetype='pdat',mindate='2015/01/01',maxdate='2016/01/01')
     id_list=Entrez.read(id_list_handle)
+    rec_per_j[j]=len(id_list['IdList'])
     pubs=pubs+id_list['IdList']
 
+idfile=open('pub_list.csv','wb')
+wr=csv.writer(idfile)
+wr.writerow(pubs)
+idfile.close()
+
+fromfile=open('pub_list.csv','r')
+rr=csv.reader(fromfile)
+for line in rr:
+    pubs=line
+    pubs=[int(x) for x in pubs]
 
 #want t odefine functions to fetch most of this stuff so can pass error when theres no abstract or whatever.
 def fetch_abs(article):
@@ -96,14 +116,15 @@ def fetch_authors(article):
     if article.has_key('AuthorList'):
         return article['AuthorList']
     else:
-        return 'None'
+        return 'None'200
         
         
-chunk=10
+chunk=500
 for i in range(0,len(pubs),chunk):
-        
-    handle=Entrez.efetch(db='pubmed',id=pubs,retstart=i,retmode='xml',retmax=chunk)
+    start=time.time()    
+    handle=Entrez.efetch(db='pubmed',id=pubs[0],retstart=i,retmode='xml',retmax=100)
     record=Entrez.read(handle)
+    print (time.time()-start)/60
     
     #loop over every entry in record to extract and save the details.
     for x in record:
