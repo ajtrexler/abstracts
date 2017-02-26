@@ -205,8 +205,14 @@ for i in range(bottom,len(pubs),chunk):
 
     #remove zero rows
     instframe=instframe[]
+    q=pubframe[pubframe['abstract']==0].index.values #get pmid from 0 abstract rows
     pubframe=pubframe[pubframe['abstract']!=0]
 
+    #check this pmid over instframe and authframe and remove those values to clean up the dbs.
+    instframe=instframe[instframe['pmid'].isin(q)==False]
+    authframe=authframe[authframe['pmid'].isin(q)==False]
+    
+    
     pubframe.to_sql(sql_file,db,if_exists='append')
 
 db.commit()
