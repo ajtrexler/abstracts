@@ -82,16 +82,19 @@ def fetch_abs(article):
     else:
         return 'None'
 
-def make_authlist(auths):
+def make_authlist(auths,pmid):
     names=[]
     for x in auths:
         if ('ForeName' in x) & ('LastName' in x):
             names.append(x['ForeName'] + ' ' + x['LastName'])
-    return names
+    apd=pd.DataFrame(columns=['pmid','name'])
+    apd['name']=names
+    apd['pmid']=pmid
+    return apd
 
 
 #problem here is people with more than one affiliation.  parse on periods?
-def make_instlist(auths):
+def make_instlist(auths,pmid):
     inst=[]
     for x in auths:
         if x['AffiliationInfo']:
@@ -99,18 +102,27 @@ def make_instlist(auths):
             xinst.encode('ascii','replace')
         else:
             xinst='None'
-        
+
         #first parse xinst for email addresses.
         res=re.search('\S+@\S+',xinst)
         if res:
             xinst=xinst.replace(res.group(),'')
             print res.group()
+        
+        #find how many periods.
+        perres=re.search('\w{1}(\.)',xinst)        
+        if perres:
+            xinst=xinst.replace(perres.group(1),'')
         linst=xinst.split('.')
         for l in linst:
             l=l.strip()
-            if (l!='') & (l not in inst):
+            secres=re.search('address',l)
+            if (l!='') & (l not in inst) & (not secres):
                 inst.append(l)
-    return inst        
+    ipd=pd.DataFrame(columns=['pmid','inst'])
+    ipd['inst']=inst
+    ipd['pmid']=pmid
+    return ipd        
     
 def get_date(mcite):
     if mcite.has_key('DateCompleted'):
@@ -141,11 +153,12 @@ for i in range(bottom,len(pubs),chunk):
     handle=Entrez.efetch(db='pubmed',id=l,retstart=i,retmode='xml',retmax=100)
     record=Entrez.read(handle)
     #init dataframe to save stuff into.  indices will be PMIDs.
-    pubframe=pd.DataFrame(columns=['date','journal','jif','abstract','title','num_auth','senior','first','full_auth','inst'])
+    pubframe=pd.DataFrame(columns=['date','journal','jif','abstract','title','num_auth','senior','first'])
+    authframe=pd.DataFrame(columns=['pmid','name'])
+    instframe=pd.DataFrame(columns=['pmid','inst'])
 
     #loop over every entry in record to extract and save the details.
     for x in record['PubmedArticle']:
-        
         mcite=x['MedlineCitation']
         pdata=x['PubmedData']
         pmid=int(mcite['PMID'])
@@ -173,17 +186,16 @@ for i in range(bottom,len(pubs),chunk):
             pubframe.loc[pmid,'num_auth']=len(auth_list) 
             if 'CollectiveName' in auth_list[0]: 
                 pubframe.loc[pmid,'first']='collective'
-                pubframe.loc[pmid,'full_auth']='collective'
             else:
                 pubframe.loc[pmid,'first']=auth_list[0]['ForeName']+' ' + auth_list[0]['LastName']         
-                pubframe.loc[pmid,'full_auth']=make_authlist(auth_list)
+            authframe=pd.concat([authframe,make_authlist(auth_list,pmid)],ignore_index=True)
             
             if 'CollectiveName' in auth_list[-1]: 
                 pubframe.loc[pmid,'senior']='collective'
             else:
                 pubframe.loc[pmid,'senior']=auth_list[-1]['ForeName']+' ' + auth_list[-1]['LastName']
                 
-            pubframe.loc[pmid,'inst']=make_instlist(auth_list)
+            instframe=pd.concat([instframe,make_instlist(auth_list,pmid)],ignore_index=True)
         else:
             pubframe.ix[pmid]=0
 
@@ -192,6 +204,7 @@ for i in range(bottom,len(pubs),chunk):
             pubframe.ix[pmid]=0
 
     #remove zero rows
+    instframe=instframe[]
     pubframe=pubframe[pubframe['abstract']!=0]
 
     pubframe.to_sql(sql_file,db,if_exists='append')
