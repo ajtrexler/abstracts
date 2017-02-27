@@ -204,7 +204,6 @@ for i in range(bottom,len(pubs),chunk):
             pubframe.ix[pmid]=0
 
     #remove zero rows
-    instframe=instframe[]
     q=pubframe[pubframe['abstract']==0].index.values #get pmid from 0 abstract rows
     pubframe=pubframe[pubframe['abstract']!=0]
 
@@ -213,7 +212,9 @@ for i in range(bottom,len(pubs),chunk):
     authframe=authframe[authframe['pmid'].isin(q)==False]
     
     
-    pubframe.to_sql(sql_file,db,if_exists='append')
+    pubframe.to_sql('absframe',db,if_exists='append',index=False)
+    #perform DB op to write the pubframe index into pmid row.
+    #repeat over auth and instframes.
 
 db.commit()
 db.close()

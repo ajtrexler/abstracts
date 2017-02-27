@@ -10,22 +10,16 @@ import sqlite3
 
 sql_file='mydb.sqlite'
 table_name1='absframe'
-table_name2='geoframe'
-
-abs_columns=['date','journal','jif','abstract','title','num_auth','senior','first','full_auth','inst']
-abs_col_types=['TEXT','TEXT','REAL','TEXT','TEXT','INTEGER','TEXT','TEXT','TEXT','TEXT','TEXT']
-
-q=[]
-for row in zip(abs_columns,abs_col_types):
-    q.append(" ".join(map(str,row)))
+tn2='authframe'
+tn3='instframe'
 
 db=sqlite3.connect(sql_file)
 db.text_factory=str
 conn=db.cursor()
 
-conn.execute('CREATE TABLE absframe(pmid INT, jif INT,journal TEXT, abstract TEXT, PRIMARY KEY (pmid))')
-
-conn.execute('CREATE TABLE {tn}({nant})'.format(tn=table_name1,nant=q))
+conn.execute('CREATE TABLE {tn}(pmid INT, date BLOB, journal TEXT, jif INT, abstract TEXT, title TEXT, num_auth INT, senior TEXT, first TEXT, PRIMARY KEY (pmid))'.format(tn=table_name1))
+conn.execute('CREATE TABLE {tn}(pmid INT, auth TEXT, PRIMARY KEY (pmid))'.format(tn=tn2))
+conn.execute('CREATE TABLE {tn}(pmid INT, inst TEST, PRIMARY KEY (pmid))'.format(tn=tn3))
 
 db.commit()
 db.close()
