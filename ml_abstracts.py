@@ -5,19 +5,26 @@ Created on Sun Aug 14 18:03:07 2016
 @author: adam
 """
 
-
+import sqlite3
+import time
 #probably a nparray is the way to go.  need to make an array with column for every word in every dict.
 #
 
+start=time.time()
 #crude way to get list of common words.
-words=open('/home/adam/scripts/ml_authors/words')
+words=open('words')
 words_txt=words.read()
 common=words_txt.split('\n')
 common.pop()
 common.pop()
 words.close()
 
-pubframe=pd.read_csv('1000auth.csv')
+sql_file='mydb.sqlite'
+db=sqlite3.connect(sql_file)
+db.text_factory=str
+pubframe=pd.read_sql('SELECT * from absframe',db)
+db.close()
+
 
 
 #make a dict of all rhe words in an abstract.  remove most common 100 english words.
@@ -51,7 +58,7 @@ for (index,other) in pubframe.iterrows():
     authors_list=[]
     all_abs_dict[index]=(make_abs_dict(pubframe.loc[index,'abstract']))       
     all_titles_dict[index]=(make_abs_dict(pubframe.loc[index,'title']))  
-    authors_list=make_auth_list(pubframe.loc[index,'full_auth'])
+   # authors_list=make_auth_list(pubframe.loc[index,'full_auth'])
     for a in authors_list:
         if a not in all_auth_dict.keys():
             all_auth_dict.setdefault(a,[])
@@ -105,5 +112,5 @@ for f in all_titles_dict:
 #will neef to eventually loadinto this pubs from variety of journals, so entire corpus should be 
 #multi journal abstract list so have variation along JIF axis
             
-
+print 'time to parse {s} abstracts:'.format(s=len(pubframe)),(time.time()-start)/60,'minutes'
 

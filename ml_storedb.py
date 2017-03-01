@@ -18,8 +18,8 @@ db.text_factory=str
 conn=db.cursor()
 
 conn.execute('CREATE TABLE {tn}(pmid INT, date BLOB, journal TEXT, jif INT, abstract TEXT, title TEXT, num_auth INT, senior TEXT, first TEXT, PRIMARY KEY (pmid))'.format(tn=table_name1))
-conn.execute('CREATE TABLE {tn}(pmid INT, auth TEXT, PRIMARY KEY (pmid))'.format(tn=tn2))
-conn.execute('CREATE TABLE {tn}(pmid INT, inst TEST, PRIMARY KEY (pmid))'.format(tn=tn3))
+conn.execute('CREATE TABLE {tn}(pmid INT, name TEXT, entry INT, PRIMARY KEY (entry))'.format(tn=tn2))
+conn.execute('CREATE TABLE {tn}(pmid INT, inst TEST, entry INT, PRIMARY KEY (entry))'.format(tn=tn3))
 
 db.commit()
 db.close()

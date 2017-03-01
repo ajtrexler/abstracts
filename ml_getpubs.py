@@ -49,7 +49,7 @@ jifs=dict([('"Science (New York, N.Y.)"[Journal]',34.661),
               ('"Blood"[Journal]',11.841),
               ('"The Journal of cell biology"[Journal]',9.786),
               ('"The Journal of biological chemistry"[Journal]',4.573),
-              ('"elife"[Journal]',8.303),
+              ('"eLife"[Journal]',8.303),
               ('"Journal of cell science"[Journal]',4.706)])
               
               
@@ -143,14 +143,18 @@ chunk=100
 #check in db what latest UID is, get argnum for that.  if db: check, else: make db
 if os.path.isfile(sql_file):
     #get idx of latest entry
-    conn=db.cursor()
-    conn.execute('SELECT * FROM Table ORDER BY ID DESC LIMIT 1')
+    try:
+        conn=db.cursor()
+        bottom=pubs.index(str(conn.execute('SELECT pmid FROM absframe ORDER BY rowid DESC LIMIT 1').fetchall()[0][0]))+1
+    except:
+        bottom=0 
 else:
     bottom=0
-#set up iteration starting from argnum
+
+
 for i in range(bottom,len(pubs),chunk):
     l=pubs[i:i+chunk]
-    handle=Entrez.efetch(db='pubmed',id=l,retstart=i,retmode='xml',retmax=100)
+    handle=Entrez.efetch(db='pubmed',id=l,retstart=0,retmode='xml',retmax=100)
     record=Entrez.read(handle)
     #init dataframe to save stuff into.  indices will be PMIDs.
     pubframe=pd.DataFrame(columns=['date','journal','jif','abstract','title','num_auth','senior','first'])
@@ -187,13 +191,20 @@ for i in range(bottom,len(pubs),chunk):
             if 'CollectiveName' in auth_list[0]: 
                 pubframe.loc[pmid,'first']='collective'
             else:
-                pubframe.loc[pmid,'first']=auth_list[0]['ForeName']+' ' + auth_list[0]['LastName']         
+                try:
+                    pubframe.loc[pmid,'first']=auth_list[0]['ForeName']+' ' + auth_list[0]['LastName']
+                except:
+                    pubframe.loc[pmid,'first']='incom'
+                    
             authframe=pd.concat([authframe,make_authlist(auth_list,pmid)],ignore_index=True)
             
             if 'CollectiveName' in auth_list[-1]: 
                 pubframe.loc[pmid,'senior']='collective'
             else:
-                pubframe.loc[pmid,'senior']=auth_list[-1]['ForeName']+' ' + auth_list[-1]['LastName']
+                try:
+                    pubframe.loc[pmid,'senior']=auth_list[-1]['ForeName']+' ' + auth_list[-1]['LastName']
+                except:
+                    pubframe.loc[pmid,'senior']='incom'
                 
             instframe=pd.concat([instframe,make_instlist(auth_list,pmid)],ignore_index=True)
         else:
@@ -204,17 +215,30 @@ for i in range(bottom,len(pubs),chunk):
             pubframe.ix[pmid]=0
 
     #remove zero rows
-    q=pubframe[pubframe['abstract']==0].index.values #get pmid from 0 abstract rows
-    pubframe=pubframe[pubframe['abstract']!=0]
+    q=pubframe[pubframe['abstract']!=0].index.values #get pmid from 0 abstract rows
+    pubframe=pubframe.loc[q]
+    instframe=instframe[instframe['pmid'].isin(q)==True]
+    authframe=authframe[authframe['pmid'].isin(q)==True]
+    
+    pubframe['pmid']=pubframe.index.values
+    if conn.execute('SELECT COUNT (*) FROM instframe').fetchall()[0][0] != 0:
+        instframe['entry']=np.arange(conn.execute('SELECT COUNT (*) FROM instframe').fetchall()[0][0]+1,conn.execute('SELECT COUNT (*) FROM instframe').fetchall()[0][0]+len(instframe)+1)
+        authframe['entry']=np.arange(conn.execute('SELECT COUNT (*) FROM authframe').fetchall()[0][0]+1,conn.execute('SELECT COUNT (*) FROM authframe').fetchall()[0][0]+len(authframe)+1)
+    else:
+        instframe['entry']=np.arange(0,len(instframe))
+        authframe['entry']=np.arange(0,len(authframe))
 
     #check this pmid over instframe and authframe and remove those values to clean up the dbs.
-    instframe=instframe[instframe['pmid'].isin(q)==False]
-    authframe=authframe[authframe['pmid'].isin(q)==False]
+
     
     
     pubframe.to_sql('absframe',db,if_exists='append',index=False)
+    instframe.to_sql('instframe',db,if_exists='append',index=False)
+    authframe.to_sql('authframe',db,if_exists='append',index=False)
+    db.commit()
+    time.sleep(10)
     #perform DB op to write the pubframe index into pmid row.
     #repeat over auth and instframes.
 
-db.commit()
+
 db.close()
