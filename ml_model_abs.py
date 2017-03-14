@@ -13,8 +13,9 @@ from sklearn.feature_selection import SelectFromModel
 import seaborn as sea
 
 #assign jifs per row
-absframe['jif']=pubframe['jif']
-titleframe['jif']=pubframe['jif']
+
+hash_df['jif']=pubframe['jif']
+title_df['jif']=pubframe['jif']
 
 def lasso_predictions(trainer,alpha):
     #take trainer data, assign jif vars and then remove jifs from training data.  separate out the cv dataset but use
@@ -38,7 +39,7 @@ def lasso_predictions(trainer,alpha):
 
     cv_score=r2_score(cv_jif,cv_pred)
     full_pred=model.predict(full_data)
-    
+    print cv_score
     return full_pred,cv_score
     
 #   use lassocv or whatever to get best CV for each model set. 
@@ -66,8 +67,8 @@ def lasso_predictions(trainer,alpha):
 #transform_frame=pca2.transform(train_data_frame)
 #cv_transform=pca2.transform(cv_data_frame)
 
-abs_predictions,w_abs=lasso_predictions(absframe,0.1)
-title_predictions,w_title=lasso_predictions(titleframe,0.25)
+abs_predictions,w_abs=lasso_predictions(hash_df,0.01)
+title_predictions,w_title=lasso_predictions(title_df,0.005)
 
 avg_predictions=[]
 for x,y in zip(abs_predictions,title_predictions):

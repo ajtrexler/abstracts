@@ -9,10 +9,11 @@ Created on Sat Sep 17 16:22:14 2016
 
 from sklearn.naive_bayes import GaussianNB
 from sklearn import metrics
+from sklearn import naive_bayes
 
 #assign journal name per row
-absframe['journal']=pubframe['journal']
-titleframe['journal']=pubframe['journal']
+hash_df['journal']=pubframe['journal']
+title_df['journal']=pubframe['journal']
 
 def make_bayes(trainer):
     cv_data=trainer[0::10]
@@ -24,7 +25,7 @@ def make_bayes(trainer):
     trainer_data=trainer_data.drop('journal',1)
     
     full_data=trainer.drop('journal',1)
-    gnb=GaussianNB()
+    gnb=naive_bayes.MultinomialNB()
     model=gnb.fit(trainer_data,trainer_targets)
     pred_trainer=model.predict(trainer_data)
     pred_cv=model.predict(cv_data)
@@ -33,5 +34,5 @@ def make_bayes(trainer):
     return q
     
 
-q_abstract=make_bayes(absframe)
-q_titles=make_bayes(titleframe)
+q_abstract=make_bayes(hash_df)
+q_titles=make_bayes(title_df)

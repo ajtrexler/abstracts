@@ -7,6 +7,13 @@ Created on Sun Aug 14 18:03:07 2016
 
 import sqlite3
 import time
+import pandas as pd
+import pickle
+import re
+import sklearn
+from sklearn import feature_extraction
+import numpy as np
+import matplotlib.pyplot as plt
 #probably a nparray is the way to go.  need to make an array with column for every word in every dict.
 #
 
@@ -23,6 +30,20 @@ sql_file='mydb.sqlite'
 db=sqlite3.connect(sql_file)
 db.text_factory=str
 pubframe=pd.read_sql('SELECT * from absframe',db)
+authframe=pd.read_sql('SELECT * from authframe',db)
+freq={}
+conn=db.cursor()
+z=0
+for auth in authframe.loc[authframe.duplicated('name')==True]['name'].values:
+    try:
+        freq[auth]=len(conn.execute('SELECT * FROM authframe WHERE name LIKE "%{a}%"'.format(a=auth)).fetchall())
+    except:
+        continue
+    z=z+1
+    if z % 100==0:
+        print z
+  
+
 db.close()
 
 
@@ -66,9 +87,20 @@ for (index,other) in pubframe.iterrows():
         else:
             all_auth_dict[a].append(pubframe.loc[index,'jif'])
 
-
-
-
+'''
+code to painfully generate author_freq, which is just the number of times duplicate authors appear in authframe.
+'''
+#author_freq={}  
+#z=0 
+#for auth in authframe.loc[authframe.duplicated('name')==True]['name']:
+#    author_freq[auth]=sum(authframe['name']==auth)
+#    z=z+1
+#    if z % 100==0:
+#        print z
+#with open('author_freq.pkl', 'wb') as f:
+#    pickle.dump(author_freq, f, pickle.HIGHEST_PROTOCOL)
+        
+    
 #after the all_abs_dict is made, know what all the words in the abstracts are so then just combine them all into one big word list
 #this list is just all the words in all the abstracts
 big_word_list=[]
@@ -82,35 +114,47 @@ for t in all_titles_dict:
     for tt in all_titles_dict[t]:
          if tt not in big_title_list:
             big_title_list.append(tt) 
-            
-#absframe will be what algo is used on.  it will encode whether a word is located in an abstract and zero if not over all the words in all the abstracts
-absframe=pd.DataFrame(columns=big_word_list)
-titleframe=pd.DataFrame(columns=big_title_list)
 
-for e in all_abs_dict:
-    local=all_abs_dict[e]
-    dict_absframe={}
-    for k in big_word_list:
-        if k in local.keys():
-            dict_absframe[k]=local[k]
-        else:
-            dict_absframe[k]=0
-    
-    absframe.loc[e]=dict_absframe
-
-for f in all_titles_dict:
-    local=all_abs_dict[f]
-    dict_titleframe={}
-    for l in big_title_list:
-        if l in local.keys():
-            dict_titleframe[l]=local[l]
-        else:
-            dict_titleframe[l]=0
-    
-    titleframe.loc[f]=dict_titleframe        
-#next need to add encoding to absframe with JIF or whatever other metric to predict.
-#will neef to eventually loadinto this pubs from variety of journals, so entire corpus should be 
-#multi journal abstract list so have variation along JIF axis
             
-print 'time to parse {s} abstracts:'.format(s=len(pubframe)),(time.time()-start)/60,'minutes'
+hasher=sklearn.feature_extraction.FeatureHasher(n_features=2**11,non_negative=True)      
+abshash=hasher.transform(all_abs_dict.values())
+hash_df=pd.DataFrame(index=pubframe.index.values,data=abshash.toarray())
+titlehash=hasher.transform(all_titles_dict.values())
+title_df=pd.DataFrame(index=pubframe.index.values,data=titlehash.toarray())            
+
+
+'''
+below is code for manually creating hash tables for each abstract that explicitly wha tthe feature names (the words)
+are.  they of course take way longer than the hasing trick above.
+'''            
+##absframe will be what algo is used on.  it will encode whether a word is located in an abstract and zero if not over all the words in all the abstracts
+#absframe=pd.DataFrame(columns=big_word_list)
+#titleframe=pd.DataFrame(columns=big_title_list)
+#
+#for e in all_abs_dict:
+#    local=all_abs_dict[e]
+#    dict_absframe={}
+#    for k in big_word_list:
+#        if k in local.keys():
+#            dict_absframe[k]=local[k]
+#        else:
+#            dict_absframe[k]=0
+#    
+#    absframe.loc[e]=dict_absframe
+#
+#for f in all_titles_dict:
+#    local=all_abs_dict[f]
+#    dict_titleframe={}
+#    for l in big_title_list:
+#        if l in local.keys():
+#            dict_titleframe[l]=local[l]
+#        else:
+#            dict_titleframe[l]=0
+#    
+#    titleframe.loc[f]=dict_titleframe        
+##next need to add encoding to absframe with JIF or whatever other metric to predict.
+##will neef to eventually loadinto this pubs from variety of journals, so entire corpus should be 
+##multi journal abstract list so have variation along JIF axis
+#            
+#print 'time to parse {s} abstracts:'.format(s=len(pubframe)),(time.time()-start)/60,'minutes'
 
