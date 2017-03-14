@@ -14,6 +14,7 @@ import sklearn
 from sklearn import feature_extraction
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 #probably a nparray is the way to go.  need to make an array with column for every word in every dict.
 #
 
@@ -31,22 +32,54 @@ db=sqlite3.connect(sql_file)
 db.text_factory=str
 pubframe=pd.read_sql('SELECT * from absframe',db)
 authframe=pd.read_sql('SELECT * from authframe',db)
-freq={}
+
+if os.path.isfile('author_freq.pkl'):
+    #if author_freq in pkl, then just load it
+    with open('author_freq.pkl','rb') as f:
+        freq=pickle.load(f)    
+else:
+    #generate the author freq dict from the database
+    conn=db.cursor()
+    freq={}
+    z=0
+    for auth in authframe.loc[authframe.duplicated('name')==True]['name'].values:
+        try:
+            freq[auth]=len(conn.execute('SELECT * FROM authframe WHERE name LIKE "%{a}%"'.format(a=auth)).fetchall())
+        except:
+            continue
+        z=z+1
+        if z % 100==0:
+            print z
+start=time.time()    
+sumauthfreq={}
+fails=0
 conn=db.cursor()
-z=0
-for auth in authframe.loc[authframe.duplicated('name')==True]['name'].values:
+
+for pmid in pubframe['pmid']:
     try:
-        freq[auth]=len(conn.execute('SELECT * FROM authframe WHERE name LIKE "%{a}%"'.format(a=auth)).fetchall())
+        authors=conn.execute('SELECT name FROM authframe WHERE pmid LIKE "%{a}%"'.format(a=pmid)).fetchall()
+        sumauthfreq[pmid]=np.sum([authframe.loc[authframe['name']==a[0],'freq'].values[0] for a in authors])
     except:
-        continue
-    z=z+1
-    if z % 100==0:
-        print z
-  
+        fails=fails+1
+        continue    
+print (time.time()-start)/60,'minutes'
 
 db.close()
+def authfreq_ret(x):
+    if x in freq:
+        return freq[x]
+    else:
+        return 1
+authframe['freq']=authframe['name'].apply(lambda x: authfreq_ret(x))
+pubframe['sumfreq']=authframe['pmid'].apply(lambda x: sumauthfreq[x])
+authframe.drop('entry',1,inplace=True)
+#build out metadata frame from authframe
+#sum freqs from all auths
+metaframe=pubframe[['sumfreq','num_auth']]
+metaframe['first']=pubframe['first'].apply(lambda x: authfreq_ret(x))
+metaframe['senior']=pubframe['senior'].apply(lambda x: authfreq_ret(x))
 
-
+sklearn.ensemble.BaggingClassifier().fit()
 
 #make a dict of all rhe words in an abstract.  remove most common 100 english words.
 def make_abs_dict(a):
