@@ -9,6 +9,8 @@ Created on Fri Aug 26 12:53:11 2016
 #use geopy lib to take addresses and convert.
 #bin into 1
 
+#test git.
+
 import geopy
 import numpy as np
 from geopy.geocoders import Nominatim
