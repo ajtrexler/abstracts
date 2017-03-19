@@ -14,7 +14,7 @@ import numpy as np
 from geopy.geocoders import Nominatim
 geolocator = Nominatim()
 import time
-from sklearn.neighbdefaultdictors import NearestNeighbors as knn
+from sklearn.neighbors import NearestNeighbors as knn
 from sklearn import manifold
 from sklearn.cluster import KMeans
 import ast
@@ -22,68 +22,132 @@ import scipy as sci
 import collections
 
 
-#coord_array=pd.DataFrame(index=np.arange(0,32400,1),columns=['count','name'])
-#
-#geo_list=[]
-#place_list=[]
-#j_list=[]
-#i_list=[]
-#
-#for (idx,other) in pubframe.iterrows():
-#    time.sleep(1.5)
-#    institutions=pubframe.loc[idx,'inst']
-#    j=pubframe.loc[idx,'jif']
-#    if institutions!='[None]':
-#
-#        in_list=institutions.split(';')
-#        for x in in_list:
-#            px=x.split(',')
-#            
-#            if len(px)>=2:
-#                locate=px[-2]+px[-1]
-#                location=geolocator.geocode(locate,exactly_one=True,timeout=10)
-#                if location:
-#                    geo_list.append([location.latitude,location.longitude])
-#                    place_list.append(location.raw['place_id'])
-#                    j_list.append(j)
-#                    i_list.append(idx)
-#                else:
-#                    if len(px)>=3:
-#                        locate=px[-3]+px[-2]
-#                        location=geolocator.geocode(locate,exactly_one=True,timeout=10)
-#                        if location:
-#                            geo_list.append([location.latitude,location.longitude])
-#                            place_list.append(location.raw['place_id'])
-#                            j_list.append(j)
-#                            i_list.append(idx)
-#                        else:
-#                            geo_list.append(-500)
-#                            place_list.append(-500)
-#                            j_list.append(-500)
-#                            i_list.append(idx)
-#                    else:
-#                        geo_list.append(-500)
-#                        place_list.append(-500)
-#                        j_list.append(-500)
-#                        i_list.append(idx)
-#            else:
-#                geo_list.append(-500)
-#                place_list.append(-500)
-#                j_list.append(-500)
-#                i_list.append(idx)
-#    else:
-#        geo_list.append(-500)
-#        place_list.append(-500)
-#        j_list.append(-500)
-#        i_list.append(idx)
-#        
-#
-#savegeo=pd.DataFrame(columns=['geo','place','jif','idx'])
-#savegeo['geo']=geo_list
-#savegeo['place']=place_list
-#savegeo['jif']=j_list
-#savegeo['idx']=i_list
-#savegeo.to_csv('savegeo.csv')
+coord_array=pd.DataFrame(index=np.arange(0,32400,1),columns=['count','name'])
+
+sql_file='mydb.sqlite'
+db=sqlite3.connect(sql_file)
+db.text_factory=str
+instframe=pd.read_sql('SELECT * from instframe',db)
+conn=db.cursor()
+
+geo_list=[]
+place_list=[]
+j_list=[]
+i_list=[]
+
+
+for pmid in short['pmid']:
+    try:
+        inst=conn.execute('SELECT inst FROM instframe WHERE pmid LIKE "%{a}%"'.format(a=pmid)).fetchall()
+        if inst:        
+            for x in inst:
+                px=x[0].split(',')
+                    if len(px)>=2:
+                        locate=px[-2]+px[-1]
+                        location=geolocator.geocode(locate,exactly_one=True,timeout=10)
+                        if location:
+                            #write a row to db with lat/lon/pmid data/'place_id'/journalname
+                            #def a function to write this stuff, so can call below as well.
+                            #how to deal with missing data?
+                            geo_list.append([location.latitude,location.longitude])
+                            place_list.append(location.raw['place_id'])
+                            j_list.append(j)
+                            i_list.append(idx)
+                        else:
+                            if len(px)>=3:
+                                locate=px[-3]+px[-2]
+                                location=geolocator.geocode(locate,exactly_one=True,timeout=10)
+                                if location:
+                                    geo_list.append([location.latitude,location.longitude])
+                                    place_list.append(location.raw['place_id'])
+                                    j_list.append(j)
+                                    i_list.append(idx)
+                                else:
+                                    #write row with a placeholder value or make a flag for missing data.  
+                                    #would be useful to know how many missing data from each pmid
+                                    geo_list.append(-500)
+                                    place_list.append(-500)
+                                    j_list.append(-500)
+                                    i_list.append(idx)
+                            else:
+                                geo_list.append(-500)
+                                place_list.append(-500)
+                                j_list.append(-500)
+                                i_list.append(idx)
+                    else:
+                        geo_list.append(-500)
+                        place_list.append(-500)
+                        j_list.append(-500)
+                        i_list.append(idx)
+        else:
+            #if no inst, just mark place with -500 for dropping later.
+            geo_list.append(-500)
+            place_list.append(-500)
+            j_list.append(-500)
+            i_list.append(idx)            
+    
+    except:
+        #keep record of how many failed accesses to db.  would mean no insts on record for that pmid.
+        fails=fails+1
+        continue 
+
+    
+
+for (idx,other) in pubframe.iterrows():
+    time.sleep(1.5)
+    institutions=pubframe.loc[idx,'inst']
+    j=pubframe.loc[idx,'jif']
+    if institutions!='[None]':
+
+        in_list=institutions.split(';')
+        for x in in_list:
+            px=x.split(',')
+            
+            if len(px)>=2:
+                locate=px[-2]+px[-1]
+                location=geolocator.geocode(locate,exactly_one=True,timeout=10)
+                if location:
+                    geo_list.append([location.latitude,location.longitude])
+                    place_list.append(location.raw['place_id'])
+                    j_list.append(j)
+                    i_list.append(idx)
+                else:
+                    if len(px)>=3:
+                        locate=px[-3]+px[-2]
+                        location=geolocator.geocode(locate,exactly_one=True,timeout=10)
+                        if location:
+                            geo_list.append([location.latitude,location.longitude])
+                            place_list.append(location.raw['place_id'])
+                            j_list.append(j)
+                            i_list.append(idx)
+                        else:
+                            geo_list.append(-500)
+                            place_list.append(-500)
+                            j_list.append(-500)
+                            i_list.append(idx)
+                    else:
+                        geo_list.append(-500)
+                        place_list.append(-500)
+                        j_list.append(-500)
+                        i_list.append(idx)
+            else:
+                geo_list.append(-500)
+                place_list.append(-500)
+                j_list.append(-500)
+                i_list.append(idx)
+    else:
+        geo_list.append(-500)
+        place_list.append(-500)
+        j_list.append(-500)
+        i_list.append(idx)
+        
+
+savegeo=pd.DataFrame(columns=['geo','place','jif','idx'])
+savegeo['geo']=geo_list
+savegeo['place']=place_list
+savegeo['jif']=j_list
+savegeo['idx']=i_list
+savegeo.to_csv('savegeo.csv')
 
 journals={}
 for x in jifs:

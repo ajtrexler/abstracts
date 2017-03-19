@@ -16,6 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
+
 start=time.time()
 #crude way to get list of common words.
 words=open('words')
@@ -51,7 +52,7 @@ else:
 
 if os.path.isfile('author_sumfreq.pkl'):
     #if author_sumfreq in pkl, then just load it
-    with open('author_freq.pkl','rb') as f:
+    with open('author_sumfreq.pkl','rb') as f:
         sumauthfreq=pickle.load(f)    
 else:
     #generate sumauthfreq
@@ -76,10 +77,11 @@ else:
 
 
 def authfreq_ret(x):
-    if x in sumauthfreq:
-        return sumauthfreq[x]
+    if x in freq:
+        return freq[x]
     else:
         return 1
+        
 authframe['freq']=authframe['name'].apply(lambda x: authfreq_ret(x))
 pubframe['sumfreq']=authframe['pmid'].apply(lambda x: sumauthfreq[x])
 authframe.drop('entry',1,inplace=True)
@@ -95,7 +97,6 @@ metaframe['1auth']=first_encoder.transform(pubframe['first'])
 
 last_encoder=ppp.LabelEncoder().fit(pubframe['senior'])
 metaframe['lastauth']=last_encoder.transform(pubframe['senior'])
-
 
 
 #make a dict of all rhe words in an abstract.  remove most common 100 english words.
@@ -137,19 +138,7 @@ for (index,other) in pubframe.iterrows():
 #        else:
 #            all_auth_dict[a].append(pubframe.loc[index,'jif'])
 
-'''
-code to painfully generate author_freq, which is just the number of times duplicate authors appear in authframe.
-'''
-#author_freq={}  
-#z=0 
-#for auth in authframe.loc[authframe.duplicated('name')==True]['name']:
-#    author_freq[auth]=sum(authframe['name']==auth)
-#    z=z+1
-#    if z % 100==0:
-#        print z
-#with open('author_freq.pkl', 'wb') as f:
-#    pickle.dump(author_freq, f, pickle.HIGHEST_PROTOCOL)
-        
+       
     
 #after the all_abs_dict is made, know what all the words in the abstracts are so then just combine them all into one big word list
 #this list is just all the words in all the abstracts

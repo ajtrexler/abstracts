@@ -13,6 +13,7 @@ from sklearn import naive_bayes
 from sklearn import ensemble
 import random
 from sklearn import preprocessing as ppp
+from sklearn import linear_model as lin_mod
 
 #assign journal name per row
 labeler=ppp.LabelEncoder().fit(pubframe['journal'])
@@ -20,6 +21,8 @@ labels=labeler.transform(pubframe['journal'])
 
 hash_df['journal']=labels
 title_df['journal']=labels
+metaframe['journal']=labels
+
 
 random.seed(a=1224)
 cix=random.sample(xrange(len(hash_df)),int(np.asarray(len(hash_df))*frac))
@@ -49,8 +52,8 @@ def make_bayes(trainer):
 
 def make_bags(trainer):
     cv_data,cv_targets,trainer_data,trainer_targets=sep_data(trainer,cix,0.2)
-
-    bag=sklearn.ensemble.BaggingClassifier(n_estimators=20)
+    #basemod=sklearn.svm.SVC()
+    bag=sklearn.ensemble.BaggingClassifier(n_estimators=50)
     model=bag.fit(trainer_data,trainer_targets)
     pred_trainer=model.predict(trainer_data)
     prob_trainer=model.predict_proba(cv_data)
@@ -65,7 +68,6 @@ def make_bags(trainer):
 q_abstract,abs_prob=make_bayes(hash_df)
 q_titles,title_probs=make_bayes(title_df)
 
-metaframe['journal']=labels
 q_meta,probs=make_bags(metaframe)
 
 test_targets=hash_df.loc[cix,'journal']
