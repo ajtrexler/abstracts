@@ -15,8 +15,6 @@ from sklearn import feature_extraction
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-#probably a nparray is the way to go.  need to make an array with column for every word in every dict.
-#
 
 start=time.time()
 #crude way to get list of common words.
@@ -50,24 +48,36 @@ else:
         z=z+1
         if z % 100==0:
             print z
-start=time.time()    
-sumauthfreq={}
-fails=0
-conn=db.cursor()
 
-for pmid in pubframe['pmid']:
-    try:
-        authors=conn.execute('SELECT name FROM authframe WHERE pmid LIKE "%{a}%"'.format(a=pmid)).fetchall()
-        sumauthfreq[pmid]=np.sum([authframe.loc[authframe['name']==a[0],'freq'].values[0] for a in authors])
-    except:
-        fails=fails+1
-        continue    
-print (time.time()-start)/60,'minutes'
+if os.path.isfile('author_sumfreq.pkl'):
+    #if author_sumfreq in pkl, then just load it
+    with open('author_freq.pkl','rb') as f:
+        sumauthfreq=pickle.load(f)    
+else:
+    #generate sumauthfreq
+    start=time.time()    
+    sumauthfreq={}
+    fails=0
+    conn=db.cursor()
+    
+    for pmid in pubframe['pmid']:
+        try:
+            authors=conn.execute('SELECT name FROM authframe WHERE pmid LIKE "%{a}%"'.format(a=pmid)).fetchall()
+            sumauthfreq[pmid]=np.sum([authframe.loc[authframe['name']==a[0],'freq'].values[0] for a in authors])
+        except:
+            fails=fails+1
+            continue    
+    print (time.time()-start)/60,'minutes'
+    with open('author_sumfreq.pkl', 'wb') as f:
+        pickle.dump(sumauthfreq, f, pickle.HIGHEST_PROTOCOL)
+    
+    db.close()
 
-db.close()
+
+
 def authfreq_ret(x):
-    if x in freq:
-        return freq[x]
+    if x in sumauthfreq:
+        return sumauthfreq[x]
     else:
         return 1
 authframe['freq']=authframe['name'].apply(lambda x: authfreq_ret(x))
@@ -78,8 +88,15 @@ authframe.drop('entry',1,inplace=True)
 metaframe=pubframe[['sumfreq','num_auth']]
 metaframe['first']=pubframe['first'].apply(lambda x: authfreq_ret(x))
 metaframe['senior']=pubframe['senior'].apply(lambda x: authfreq_ret(x))
+#leakage from title length since this is often restricted by journal
+#metaframe['titlelen']=pubframe['title'].apply(len)
+first_encoder=ppp.LabelEncoder().fit(pubframe['first'])
+metaframe['1auth']=first_encoder.transform(pubframe['first'])
 
-sklearn.ensemble.BaggingClassifier().fit()
+last_encoder=ppp.LabelEncoder().fit(pubframe['senior'])
+metaframe['lastauth']=last_encoder.transform(pubframe['senior'])
+
+
 
 #make a dict of all rhe words in an abstract.  remove most common 100 english words.
 def make_abs_dict(a):
@@ -113,12 +130,12 @@ for (index,other) in pubframe.iterrows():
     all_abs_dict[index]=(make_abs_dict(pubframe.loc[index,'abstract']))       
     all_titles_dict[index]=(make_abs_dict(pubframe.loc[index,'title']))  
    # authors_list=make_auth_list(pubframe.loc[index,'full_auth'])
-    for a in authors_list:
-        if a not in all_auth_dict.keys():
-            all_auth_dict.setdefault(a,[])
-            all_auth_dict[a].append(pubframe.loc[index,'jif'])
-        else:
-            all_auth_dict[a].append(pubframe.loc[index,'jif'])
+#    for a in authors_list:
+#        if a not in all_auth_dict.keys():
+#            all_auth_dict.setdefault(a,[])
+#            all_auth_dict[a].append(pubframe.loc[index,'jif'])
+#        else:
+#            all_auth_dict[a].append(pubframe.loc[index,'jif'])
 
 '''
 code to painfully generate author_freq, which is just the number of times duplicate authors appear in authframe.
