@@ -9,7 +9,7 @@ Created on Fri Aug 26 12:53:11 2016
 #use geopy lib to take addresses and convert.
 #bin into 1
 
-#test git.
+#reason for entry as primary id is that pmid will not be unique and primary KEY must be unique.
 
 import geopy
 import numpy as np
@@ -30,57 +30,83 @@ sql_file='mydb.sqlite'
 db=sqlite3.connect(sql_file)
 db.text_factory=str
 instframe=pd.read_sql('SELECT * from instframe',db)
+all_ids=list(np.unique(instframe['pmid']))
 conn=db.cursor()
+
+#check where we're at in the geoframe
+if os.path.isfile(sql_file):
+    #get idx of latest entry
+    try:
+        conn=db.cursor()
+        bottom=pubs.index(str(conn.execute('SELECT pmid FROM geoframe ORDER BY rowid DESC LIMIT 1').fetchall()[0][0]))+1
+    except:
+        bottom=0 
+else:
+    tn4='geoframe'
+    conn.execute('CREATE TABLE {tn}(pmid INT, lat DEC, lon DEC, place TEXT, PRIMARY KEY (pmid))'.format(tn=tn4))
+    db.commit()
+    bottom=0
 
 geo_list=[]
 place_list=[]
 j_list=[]
 i_list=[]
 
+def inst_entry(loc_entry,pmid):
+    loc_df=pd.DataFrame(index=[0])
+    loc_df['lat']=loc_entry.latitude
+    loc_df['lon']=loc_entry.longitude
+    loc_df['place']=loc_entry.raw['place_id']
+    loc_df['pmid']=pmid
+    loc_df.to_sql('geoframe',db,if_exists='append',index=False)
+    db.commit()
 
-for pmid in short['pmid']:
+def blank_entry(pmid):
+    loc_df=pd.DataFrame(index=[0])
+    loc_df['pmid']=pmid
+    loc_df['place']=-500
+    loc_df.to_sql('geoframe',db,if_exists='append',index=False)
+    db.commit()
+
+
+for x in range(bottom,len(all_ids),1):
+    pmid=all_ids[x]
+
     try:
         inst=conn.execute('SELECT inst FROM instframe WHERE pmid LIKE "%{a}%"'.format(a=pmid)).fetchall()
         if inst:        
             for x in inst:
                 px=x[0].split(',')
-                    if len(px)>=2:
-                        locate=px[-2]+px[-1]
-                        location=geolocator.geocode(locate,exactly_one=True,timeout=10)
-                        if location:
-                            #write a row to db with lat/lon/pmid data/'place_id'/journalname
-                            #def a function to write this stuff, so can call below as well.
-                            #how to deal with missing data?
-                            geo_list.append([location.latitude,location.longitude])
-                            place_list.append(location.raw['place_id'])
-                            j_list.append(j)
-                            i_list.append(idx)
-                        else:
-                            if len(px)>=3:
-                                locate=px[-3]+px[-2]
-                                location=geolocator.geocode(locate,exactly_one=True,timeout=10)
-                                if location:
-                                    geo_list.append([location.latitude,location.longitude])
-                                    place_list.append(location.raw['place_id'])
-                                    j_list.append(j)
-                                    i_list.append(idx)
-                                else:
-                                    #write row with a placeholder value or make a flag for missing data.  
-                                    #would be useful to know how many missing data from each pmid
-                                    geo_list.append(-500)
-                                    place_list.append(-500)
-                                    j_list.append(-500)
-                                    i_list.append(idx)
-                            else:
-                                geo_list.append(-500)
-                                place_list.append(-500)
-                                j_list.append(-500)
-                                i_list.append(idx)
+                if len(px)>=2:
+                    locate=px[-2]+px[-1]
+                    location=geolocator.geocode(locate,exactly_one=True,timeout=10)
+                    if location:
+                        inst_entry(location,pmid)
+                        #write a row to db with lat/lon/pmid data/'place_id'/journalname
+                        #def a function to write this stuff, so can call below as well.
+                        #how to deal with missing data?
+
                     else:
-                        geo_list.append(-500)
-                        place_list.append(-500)
-                        j_list.append(-500)
-                        i_list.append(idx)
+                        if len(px)>=3:
+                            locate=px[-3]+px[-2]
+                            location=geolocator.geocode(locate,exactly_one=True,timeout=10)
+                            if location:
+                                inst_entry(location,pmid)
+
+                            else:
+                                #write row with a placeholder value or make a flag for missing data.  
+                                #would be useful to know how many missing data from each pmid
+                                blank_entry(pmid)
+                        else:
+                            geo_list.append(-500)
+                            place_list.append(-500)
+                            j_list.append(-500)
+                            i_list.append(idx)
+                else:
+                    geo_list.append(-500)
+                    place_list.append(-500)
+                    j_list.append(-500)
+                    i_list.append(idx)
         else:
             #if no inst, just mark place with -500 for dropping later.
             geo_list.append(-500)
