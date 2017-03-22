@@ -21,7 +21,9 @@ from sklearn import manifold
 from sklearn.cluster import KMeans
 import ast
 import scipy as sci
+import sqlite3
 import collections
+from sklearn import preprocessing as ppp
 
 
 coord_array=pd.DataFrame(index=np.arange(0,32400,1),columns=['count','name'])
@@ -36,21 +38,13 @@ conn=db.cursor()
 #check where we're at in the geoframe
 if os.path.isfile(sql_file):
     #get idx of latest entry
+    tn4='geoframe'
+    conn.execute('CREATE TABLE IF NOT EXISTS {tn}(pmid INT, lat DEC, lon DEC, place DEC, entry INT, PRIMARY KEY (entry))'.format(tn=tn4))
+    db.commit()
     try:
-        conn=db.cursor()
-        bottom=pubs.index(str(conn.execute('SELECT pmid FROM geoframe ORDER BY rowid DESC LIMIT 1').fetchall()[0][0]))+1
+        bottom=all_ids.index(conn.execute('SELECT pmid FROM geoframe ORDER BY rowid DESC LIMIT 1').fetchall()[0][0])+1
     except:
         bottom=0 
-else:
-    tn4='geoframe'
-    conn.execute('CREATE TABLE {tn}(pmid INT, lat DEC, lon DEC, place TEXT, PRIMARY KEY (pmid))'.format(tn=tn4))
-    db.commit()
-    bottom=0
-
-geo_list=[]
-place_list=[]
-j_list=[]
-i_list=[]
 
 def inst_entry(loc_entry,pmid):
     loc_df=pd.DataFrame(index=[0])
@@ -58,20 +52,45 @@ def inst_entry(loc_entry,pmid):
     loc_df['lon']=loc_entry.longitude
     loc_df['place']=loc_entry.raw['place_id']
     loc_df['pmid']=pmid
+    if conn.execute('SELECT COUNT (*) FROM geoframe').fetchall()[0][0] != 0:
+        loc_df['entry']=conn.execute('SELECT COUNT (*) FROM geoframe').fetchall()[0][0]+1
+
+    else:
+        loc_df['entry']=1
+    
     loc_df.to_sql('geoframe',db,if_exists='append',index=False)
     db.commit()
 
-def blank_entry(pmid):
+def blank_entry(pmid,code):
     loc_df=pd.DataFrame(index=[0])
     loc_df['pmid']=pmid
-    loc_df['place']=-500
+    loc_df['place']=code
+    if conn.execute('SELECT COUNT (*) FROM geoframe').fetchall()[0][0] != 0:
+        loc_df['entry']=conn.execute('SELECT COUNT (*) FROM geoframe').fetchall()[0][0]+1
+
+    else:
+        loc_df['entry']=1
     loc_df.to_sql('geoframe',db,if_exists='append',index=False)
     db.commit()
 
+def fetch_location(locate):
+    e=0
+    while e<10:     
+        try:
+            return geolocator.geocode(locate,exactly_one=True,timeout=10)
+        except:
+            e=e+1
+            continue
+    print 'geolocator api failure possible'
+            
 
+    
+fails=0
 for x in range(bottom,len(all_ids),1):
+    time.sleep(2)
     pmid=all_ids[x]
-
+    if x % 25 == 0:
+        print x
     try:
         inst=conn.execute('SELECT inst FROM instframe WHERE pmid LIKE "%{a}%"'.format(a=pmid)).fetchall()
         if inst:        
@@ -79,7 +98,8 @@ for x in range(bottom,len(all_ids),1):
                 px=x[0].split(',')
                 if len(px)>=2:
                     locate=px[-2]+px[-1]
-                    location=geolocator.geocode(locate,exactly_one=True,timeout=10)
+                    location=fetch_location(locate)
+                    
                     if location:
                         inst_entry(location,pmid)
                         #write a row to db with lat/lon/pmid data/'place_id'/journalname
@@ -89,133 +109,59 @@ for x in range(bottom,len(all_ids),1):
                     else:
                         if len(px)>=3:
                             locate=px[-3]+px[-2]
-                            location=geolocator.geocode(locate,exactly_one=True,timeout=10)
+                            location=fetch_location(locate)
                             if location:
                                 inst_entry(location,pmid)
 
                             else:
                                 #write row with a placeholder value or make a flag for missing data.  
                                 #would be useful to know how many missing data from each pmid
-                                blank_entry(pmid)
+                                blank_entry(-500)
                         else:
-                            geo_list.append(-500)
-                            place_list.append(-500)
-                            j_list.append(-500)
-                            i_list.append(idx)
+                            blank_entry(-500)
                 else:
-                    geo_list.append(-500)
-                    place_list.append(-500)
-                    j_list.append(-500)
-                    i_list.append(idx)
+                    blank_entry(pmid,-500)
         else:
-            #if no inst, just mark place with -500 for dropping later.
-            geo_list.append(-500)
-            place_list.append(-500)
-            j_list.append(-500)
-            i_list.append(idx)            
+            #if no inst, just mark place with -999 for dropping later.
+            #-999 will mean no institutional data
+            blank_entry(pmid,-999)          
     
     except:
         #keep record of how many failed accesses to db.  would mean no insts on record for that pmid.
         fails=fails+1
+        print fails
         continue 
 
-    
-
-for (idx,other) in pubframe.iterrows():
-    time.sleep(1.5)
-    institutions=pubframe.loc[idx,'inst']
-    j=pubframe.loc[idx,'jif']
-    if institutions!='[None]':
-
-        in_list=institutions.split(';')
-        for x in in_list:
-            px=x.split(',')
-            
-            if len(px)>=2:
-                locate=px[-2]+px[-1]
-                location=geolocator.geocode(locate,exactly_one=True,timeout=10)
-                if location:
-                    geo_list.append([location.latitude,location.longitude])
-                    place_list.append(location.raw['place_id'])
-                    j_list.append(j)
-                    i_list.append(idx)
-                else:
-                    if len(px)>=3:
-                        locate=px[-3]+px[-2]
-                        location=geolocator.geocode(locate,exactly_one=True,timeout=10)
-                        if location:
-                            geo_list.append([location.latitude,location.longitude])
-                            place_list.append(location.raw['place_id'])
-                            j_list.append(j)
-                            i_list.append(idx)
-                        else:
-                            geo_list.append(-500)
-                            place_list.append(-500)
-                            j_list.append(-500)
-                            i_list.append(idx)
-                    else:
-                        geo_list.append(-500)
-                        place_list.append(-500)
-                        j_list.append(-500)
-                        i_list.append(idx)
-            else:
-                geo_list.append(-500)
-                place_list.append(-500)
-                j_list.append(-500)
-                i_list.append(idx)
-    else:
-        geo_list.append(-500)
-        place_list.append(-500)
-        j_list.append(-500)
-        i_list.append(idx)
-        
-
-savegeo=pd.DataFrame(columns=['geo','place','jif','idx'])
-savegeo['geo']=geo_list
-savegeo['place']=place_list
-savegeo['jif']=j_list
-savegeo['idx']=i_list
-savegeo.to_csv('savegeo.csv')
-
-journals={}
-for x in jifs:
-    journals[jifs[x]]=x
-
-def jif_to_j(jlist):
-    convert=[]
-    for x in jlist:
-        n=round(x,3)
-        convert.append(journals[n])
-    return convert
-        
-
-savegeo=pd.read_csv('savegeo.csv',converters={"geo": ast.literal_eval})
-savegeo.drop('Unnamed: 0',1,inplace=True)
-
-#issue is reading this as csv makes the datatypes weird.  strings instead of tuples...
-geo=savegeo[savegeo['place']!=-500]
-geo['journal']=jif_to_j(geo['jif'])
-
-lat=[x[0] for x in geo['geo']]
-lon=[x[1] for x in geo['geo']]
-
-geo['lat']=lat
-geo['lon']=lon
-geo.drop('geo',1,inplace=True)
-
-geofit=pd.DataFrame(columns=['lat','lon'])
-geofit['lat']=lat
-geofit['lon']=lon
 
 
+
+sql_file='mydb.sqlite'
+db=sqlite3.connect(sql_file)
+db.text_factory=str
+geo=pd.read_sql('SELECT * from geoframe',db)
+geo.drop(geo.loc[geo['place']==-500].index,0,inplace=True)
+
+geofit=geo[['lat','lon']]
+pubframe=pd.read_sql('SELECT * from absframe',db)
+geo['journal']=geo['pmid'].apply(lambda x: pubframe.loc[pubframe['pmid']==x,'journal'].values[0])
+labeler=ppp.LabelEncoder().fit(geo['journal'])
+labels=labeler.transform(geo['journal'])
+geo['journal']=labels
 #cluster the institutions geographically.
 clusts=KMeans(n_clusters=20).fit(geofit)
 
 clust_idx=clusts.predict(geofit)
 centers=clusts.cluster_centers_
 
+fnorms=np.bincount(labels)/float(len(labels))
+
+
 for c in np.unique(clust_idx):
     locale=geo[clust_idx==c]
+    counts=(np.bincount(locale['journal'],minlength=16))/(fnorms*len(locale))
+    plt.figure()
+    plt.suptitle('cluster'+str(c))
+    plt.plot(counts)
     centroid=centers[c]
     vote=[]
     dist=[]
