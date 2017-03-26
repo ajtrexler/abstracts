@@ -148,14 +148,39 @@ labeler=ppp.LabelEncoder().fit(geo['journal'])
 labels=labeler.transform(geo['journal'])
 geo['journal']=labels
 #cluster the institutions geographically.
-clusts=KMeans(n_clusters=20).fit(geofit)
+clusts=KMeans(n_clusters=50).fit(geofit)
 
 clust_idx=clusts.predict(geofit)
 centers=clusts.cluster_centers_
 
 fnorms=np.bincount(labels)/float(len(labels))
 
+place_encoder=ppp.LabelEncoder().fit(geo['place'])
+geo['place_enc']=place_encoder.transform(geo['place'])
 
+oh_geo=ppp.OneHotEncoder().fit_transform(geo['place'].reshape(-1,1))
+test=pd.DataFrame(index=geo['pmid'],data=oh_geo.toarray())
+def sum_inst(x):
+    local=test.loc[x]
+    if len(np.shape(local))>1:
+        return pd.DataFrame(data=local.sum()).T
+    else:
+        return pd.DataFrame(data=local).T
+
+
+
+newframe=geo['pmid'].apply(sum_inst)  
+out=newframe.to_frame()    
+new=pd.DataFrame(index=geo['pmid'],data=out.values)
+
+
+
+howpop=[]
+for i in np.unique(geo['place_enc']):
+    geo.loc[(geo['place_enc']==i)]
+    howpop.append(len(geo.loc[(geo['place_enc']==i)]))
+    
+    
 for c in np.unique(clust_idx):
     locale=geo[clust_idx==c]
     counts=(np.bincount(locale['journal'],minlength=16))/(fnorms*len(locale))
