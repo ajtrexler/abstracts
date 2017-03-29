@@ -25,7 +25,10 @@ metaframe['journal']=labels
 
 
 random.seed(a=1224)
-cix=random.sample(xrange(len(hash_df)),int(np.asarray(len(hash_df))*frac))
+#cix=random.sample(xrange(len(hash_df)),int(np.asarray(len(hash_df))*frac))
+#cix_geo=random.sample(xrange(len(nbr_vals)),int(np.asarray(len(nbr_vals))*frac))
+cix=random.sample(xrange(len(hash_df)),1000)
+cix_geo=random.sample(xrange(len(nbr_vals)),1000)
 
 def sep_data(data,cix,frac):
     targ=data['journal']
@@ -47,7 +50,7 @@ def make_bayes(trainer):
     probs=model.predict_proba(cv_data)
     q=metrics.accuracy_score(cv_targets,pred_cv)
     print metrics.classification_report(cv_targets,pred_cv)
-    return q,probs
+    return q,probs,model
     
 
 def make_bags(trainer):
@@ -62,24 +65,59 @@ def make_bags(trainer):
     q=metrics.accuracy_score(cv_targets,pred_cv)
     print metrics.classification_report(cv_targets,pred_cv)
 
-    return q,prob_trainer
+    return q,prob_trainer,model
+
+def make_geo_bags(trainer):
+    cv_data,cv_targets,trainer_data,trainer_targets=sep_data(trainer,cix_geo,0.2)
+    #basemod=sklearn.svm.SVC()
+    bag=sklearn.ensemble.BaggingClassifier(n_estimators=50)
+    model=bag.fit(trainer_data,trainer_targets)
+    pred_trainer=model.predict(trainer_data)
+    prob_trainer=model.predict_proba(cv_data)
+    pred_cv=model.predict(cv_data)
+    
+    q=metrics.accuracy_score(cv_targets,pred_cv)
+    print metrics.classification_report(cv_targets,pred_cv)
+
+    return q,prob_trainer,model
+
 
     
-q_abstract,abs_prob=make_bayes(hash_df)
-q_titles,title_probs=make_bayes(title_df)
+q_abstract,abs_prob,mod_abs=make_bayes(hash_df)
+q_titles,title_probs,mod_title=make_bayes(title_df)
 
-q_meta,probs=make_bags(metaframe)
+q_meta,probs,mod_meta=make_bags(metaframe)
 
+q,p,mod_geo=make_geo_bags(nbr_vals)
+
+
+#need to now stack!
+#straight average probabilities approach
 test_targets=hash_df.loc[cix,'journal']
 out=[]
-test_labs=[]
-for x,y,z in zip(abs_prob,title_probs,probs):
-    out.append(np.mean([x,y,z],0))
-
-
-
-labs=[]    
+for x,y,z,q in zip(abs_prob,title_probs,probs,p):
+    out.append(np.mean([x,y,z,q],0))
+labs_avg=[]    
 for x in out:
-    labs.append(np.argmax(x))
+    labs_avg.append(np.argmax(x))
+print metrics.classification_report(test_targets,labs_avg)
 
-metrics.accuracy_score(test_targets,labs)
+#use majority vote or failing that take highest prob.
+majvote=[]
+for x,y,z,q in zip(abs_prob,title_probs,probs,p):
+    s=pd.Series(np.argmax([x,y,z,q],1))
+    if s[s.duplicated()].any():
+        majvote.append(s[s.duplicated()].values[0])
+    else:
+        majvote.append(sorted(zip(np.max([x,y,z,q],1),np.argmax([x,y,z,q],1)),reverse=True)[0][1])
+
+print metrics.classification_report(test_targets,majvote)        
+
+#straight highest prob
+highvote=[]
+for x,y,z,q in zip(abs_prob,title_probs,probs,p):
+    s=pd.Series(np.argmax([x,y,z,q],1))
+    highvote.append(sorted(zip(np.max([x,y,z,q],1),np.argmax([x,y,z,q],1)),reverse=True)[0][1])
+
+print metrics.classification_report(test_targets,highvote)    
+        

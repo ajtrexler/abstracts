@@ -24,6 +24,7 @@ import scipy as sci
 import sqlite3
 import collections
 from sklearn import preprocessing as ppp
+import seaborn as sea
 
 
 coord_array=pd.DataFrame(index=np.arange(0,32400,1),columns=['count','name'])
@@ -140,9 +141,9 @@ db=sqlite3.connect(sql_file)
 db.text_factory=str
 geo=pd.read_sql('SELECT * from geoframe',db)
 geo.drop(geo.loc[geo['place']==-500].index,0,inplace=True)
+geo.reset_index(inplace=True)
 
 geofit=geo[['lat','lon']]
-pubframe=pd.read_sql('SELECT * from absframe',db)
 geo['journal']=geo['pmid'].apply(lambda x: pubframe.loc[pubframe['pmid']==x,'journal'].values[0])
 labeler=ppp.LabelEncoder().fit(geo['journal'])
 labels=labeler.transform(geo['journal'])
@@ -152,6 +153,41 @@ clusts=KMeans(n_clusters=50).fit(geofit)
 
 clust_idx=clusts.predict(geofit)
 centers=clusts.cluster_centers_
+
+#here need to exclude neighbors with same pmid value.  probably easiest to do this post knn so dont need to implement a fresh knn.
+nbrs=knn(n_neighbors=25).fit(geofit)
+distances, n_idx = nbrs.kneighbors(geofit)
+
+#drop same pmid from knn n_idx lists to prevent leakage.
+fix_n_idx=[]
+for i,x in enumerate(n_idx):
+    blah=geo.iloc[x]['pmid'].drop_duplicates(keep='first')
+    blah=blah[blah!=int(geo.iloc[i]['pmid'])]
+    fix_n_idx.append(blah.values)
+    
+    
+local_js={}
+for x,pmid in zip(n_idx,geo['pmid']):
+    if pmid in local_js:
+        entry=np.bincount(geo.loc[x]['journal'].values,minlength=16)
+        local_js[pmid]=entry+local_js[pmid]
+    else:    
+        local_js[pmid]=np.bincount(geo.loc[x]['journal'].values,minlength=16)
+l=[]
+for x in local_js.keys():
+    l.append(geo.loc[geo['pmid']==x]['journal'].values[0])
+    
+nbr_vals=pd.DataFrame(index=local_js.keys(),data=local_js.values())
+nbr_vals['journal']=l
+nbr_vals.reset_index(inplace='True')
+
+'''
+y=np.argmax(local_js.values(),1)
+q=pd.DataFrame(columns=['y','l'])
+q['y']=y
+q['l']=l  
+sea.jointplot(x='l',y='y',data=q,kind='hex')
+
 
 fnorms=np.bincount(labels)/float(len(labels))
 
@@ -213,7 +249,7 @@ csp=plt.cm.jet(np.linspace(0,1,len(np.unique(val))))
 plt.scatter(x=lat,y=lon,c=csp)
 plt.scatter(x=geofit['lat'],y=geofit['lon'],c='black')
 plt.scatter(x=cluster1['lat'],y=cluster1['lon'],c='red')
-
+'''
 
 
 

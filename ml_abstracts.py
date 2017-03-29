@@ -138,34 +138,31 @@ for (index,other) in pubframe.iterrows():
 #        else:
 #            all_auth_dict[a].append(pubframe.loc[index,'jif'])
 
-       
-    
-#after the all_abs_dict is made, know what all the words in the abstracts are so then just combine them all into one big word list
-#this list is just all the words in all the abstracts
-big_word_list=[]
-big_title_list=[]
-for d in all_abs_dict:
-    for dd in all_abs_dict[d]:
-        if dd not in big_word_list:
-            big_word_list.append(dd)
-
-for t in all_titles_dict:
-    for tt in all_titles_dict[t]:
-         if tt not in big_title_list:
-            big_title_list.append(tt) 
-
-            
 hasher=sklearn.feature_extraction.FeatureHasher(n_features=2**11,non_negative=True)      
 abshash=hasher.transform(all_abs_dict.values())
 hash_df=pd.DataFrame(index=pubframe.index.values,data=abshash.toarray())
 titlehash=hasher.transform(all_titles_dict.values())
-title_df=pd.DataFrame(index=pubframe.index.values,data=titlehash.toarray())            
-
-
+title_df=pd.DataFrame(index=pubframe.index.values,data=titlehash.toarray())         
+ 
+   
 '''
 below is code for manually creating hash tables for each abstract that explicitly wha tthe feature names (the words)
 are.  they of course take way longer than the hasing trick above.
 '''            
+#after the all_abs_dict is made, know what all the words in the abstracts are so then just combine them all into one big word list
+#this list is just all the words in all the abstracts
+#big_word_list=[]
+#big_title_list=[]
+#for d in all_abs_dict:
+#    for dd in all_abs_dict[d]:
+#        if dd not in big_word_list:
+#            big_word_list.append(dd)
+#
+#for t in all_titles_dict:
+#    for tt in all_titles_dict[t]:
+#         if tt not in big_title_list:
+#            big_title_list.append(tt) 
+
 ##absframe will be what algo is used on.  it will encode whether a word is located in an abstract and zero if not over all the words in all the abstracts
 #absframe=pd.DataFrame(columns=big_word_list)
 #titleframe=pd.DataFrame(columns=big_title_list)
